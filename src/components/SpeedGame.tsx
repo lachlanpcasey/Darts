@@ -41,6 +41,15 @@ interface ScoreRecord {
   averageTime: number;
 }
 
+interface CheckoutAttempt {
+  gameNumber: number;
+  checkout: number;
+  time: number;
+  isSuccessful: boolean;
+  attempt: string[];
+  optimalCheckout: string[];
+}
+
 interface CheckoutStats {
   number: number;
   attempts: number;
@@ -50,7 +59,7 @@ interface CheckoutStats {
 
 interface GameStats {
   checkoutStats: { [key: number]: CheckoutStats };
-  lastFiveGameTimes: number[];
+  checkoutAttempts: CheckoutAttempt[];
   totalGames: number;
   totalTime: number;
 }
@@ -84,6 +93,7 @@ function generateValidCheckouts(): number[] {
 }
 
 const VALID_CHECKOUTS = generateValidCheckouts();
+console.log('Valid checkouts generated:', VALID_CHECKOUTS);
 
 const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   const [gameState, setGameState] = useState<GameState>({
@@ -110,7 +120,7 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   const [recentScores, setRecentScores] = useState<ScoreRecord[]>([]);
   const [gameStats, setGameStats] = useState<GameStats>({
     checkoutStats: {},
-    lastFiveGameTimes: [],
+    checkoutAttempts: [],
     totalGames: 0,
     totalTime: 0
   });
@@ -206,7 +216,8 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
 
   // Update high score and recent scores
   const updateScores = (newScore: number) => {
-    const averageTime = gameState.totalTime / TOTAL_CHECKOUTS;
+    // Calculate average time directly from the total time
+    const averageTime = gameState.totalTime;
 
     if (newScore > highScore) {
       setHighScore(newScore);
@@ -239,9 +250,8 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     setGameStats(prev => {
       const newStats = {
         ...prev,
-        lastFiveGameTimes: [averageTime, ...prev.lastFiveGameTimes].slice(0, 5),
         totalGames: prev.totalGames + 1,
-        totalTime: prev.totalTime + (averageTime * TOTAL_CHECKOUTS)
+        totalTime: prev.totalTime + averageTime
       };
 
       // Get all attempted checkouts from this game
@@ -255,6 +265,18 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
           optimalCheckout: getOptimalCheckout(gameState.currentCheckout)
         }
       ];
+
+      // Add new attempts with game number
+      const newAttempts = allAttempts.map(attempt => ({
+        gameNumber: newStats.totalGames,
+        checkout: attempt.checkout,
+        time: averageTime,
+        isSuccessful: !gameState.wrongAttempts.find(w => w.checkout === attempt.checkout),
+        attempt: attempt.attempt,
+        optimalCheckout: attempt.optimalCheckout
+      }));
+
+      newStats.checkoutAttempts = [...prev.checkoutAttempts, ...newAttempts];
 
       // Update stats for each checkout attempted in this game
       allAttempts.forEach(attempt => {
@@ -310,13 +332,16 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   // Initialize or reset the game
   const startGame = () => {
     try {
+      console.log('Starting game...');
       const checkouts = getRandomCheckouts(TOTAL_CHECKOUTS);
+      console.log('Generated checkouts:', checkouts);
+      
       if (!checkouts.length) {
         console.error('Failed to generate checkouts');
         return;
       }
       
-      setGameState({
+      const newGameState = {
         currentScore: 0,
         checkoutsCompleted: 0,
         currentCheckout: checkouts[0],
@@ -334,7 +359,10 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
         showWrongAnimation: false,
         wrongAttempts: [],
         nonOptimalAttempts: []
-      });
+      };
+      
+      console.log('Setting new game state:', newGameState);
+      setGameState(newGameState);
     } catch (error) {
       console.error('Error starting game:', error);
     }
@@ -384,10 +412,10 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     let isOptimal = false;
     
     if (validation.isValid) {
-      // Update total time only for successful attempts
+      // Store the raw time without dividing
       setGameState(prev => ({
         ...prev,
-        totalTime: prev.totalTime + timeTaken
+        totalTime: timeTaken
       }));
 
       // Check if the attempt matches the optimal checkout exactly
@@ -499,11 +527,151 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     return '#e74c3c'; // Below average
   };
 
+  const renderGraph = (times: number[]) => {
+    if (times.length === 0) return null;
+
+    // Reverse the times array so most recent is on the right
+    const displayTimes = [...times].reverse();
+    const maxTime = Math.max(...displayTimes, TIME_BONUS_CUTOFF + 5); // Add padding above threshold
+    const minTime = Math.min(...displayTimes, 0);
+    const padding = 40;
+    const width = 400;
+    const height = 300;
+    
+    // Create points for the line
+    const points = displayTimes.map((time, index) => {
+      const x = padding + ((width - padding * 2) * (index / (displayTimes.length - 1)));
+      const y = height - padding - ((height - padding * 2) * ((time - minTime) / (maxTime - minTime)));
+      return `${x},${y}`;
+    }).join(' ');
+
+    return (
+      <div className="time-graph">
+        <h4>Last 10 Games Performance</h4>
+        <div className="graph-container">
+          <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+            {/* Draw horizontal grid lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+              const y = height - padding - (ratio * (height - padding * 2));
+              const timeValue = minTime + (ratio * (maxTime - minTime));
+              return (
+                <g key={ratio}>
+                  <line
+                    x1={padding}
+                    y1={y}
+                    x2={width - padding}
+                    y2={y}
+                    stroke="#e0e0e0"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={padding - 5}
+                    y={y}
+                    textAnchor="end"
+                    alignmentBaseline="middle"
+                    className="graph-axis-label"
+                  >
+                    {timeValue.toFixed(1)}s
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Draw vertical grid lines and game numbers */}
+            {displayTimes.map((_, index) => {
+              const x = padding + ((width - padding * 2) * (index / (Math.max(displayTimes.length - 1, 1))));
+              return (
+                <g key={`grid-${index}`}>
+                  <line
+                    x1={x}
+                    y1={padding}
+                    x2={x}
+                    y2={height - padding}
+                    stroke="#e0e0e0"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={x}
+                    y={height - padding + 20}
+                    textAnchor="middle"
+                    className="graph-label"
+                  >
+                    {displayTimes.length - index}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Draw the line */}
+            <polyline
+              points={points}
+              fill="none"
+              stroke="#2ecc71"
+              strokeWidth="2"
+            />
+
+            {/* Draw data points */}
+            {displayTimes.map((time, index) => {
+              const x = padding + ((width - padding * 2) * (index / (Math.max(displayTimes.length - 1, 1))));
+              const y = height - padding - ((height - padding * 2) * ((time - minTime) / (maxTime - minTime)));
+              return (
+                <g key={index}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="4"
+                    fill="#2ecc71"
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                </g>
+              );
+            })}
+
+            {/* Add axis labels */}
+            <text
+              x={width / 2}
+              y={height - 5}
+              textAnchor="middle"
+              className="graph-axis-label"
+            >
+              Games Ago
+            </text>
+            <text
+              x={-height / 2}
+              y={15}
+              textAnchor="middle"
+              transform={`rotate(-90, 15, ${height / 2})`}
+              className="graph-axis-label"
+            >
+              Time (seconds)
+            </text>
+          </svg>
+        </div>
+      </div>
+    );
+  };
+
   const renderStatistics = () => {
     const { best, worst } = getCheckoutPerformance();
     const allTimeAverage = gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS);
-    const recentAverage = gameStats.lastFiveGameTimes.length > 0
-      ? gameStats.lastFiveGameTimes.reduce((a, b) => a + b, 0) / gameStats.lastFiveGameTimes.length
+    
+    // Get the last 10 unique game numbers
+    const lastTenGames = [...new Set(gameStats.checkoutAttempts
+      .map(attempt => attempt.gameNumber))]
+      .sort((a, b) => b - a)
+      .slice(0, 10);
+
+    // Calculate average time for each game
+    const lastTenGameTimes = lastTenGames.map(gameNumber => {
+      const gameAttempts = gameStats.checkoutAttempts
+        .filter(attempt => attempt.gameNumber === gameNumber);
+      return gameAttempts.reduce((sum, attempt) => sum + attempt.time, 0) / gameAttempts.length;
+    });
+
+    // Calculate recent average from the last 5 games
+    const recentAverage = lastTenGameTimes.slice(0, 5).length > 0
+      ? lastTenGameTimes.slice(0, 5).reduce((a, b) => a + b, 0) / lastTenGameTimes.slice(0, 5).length
       : 0;
 
     return (
@@ -515,6 +683,8 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
           <p>Last 5 Games Average: {recentAverage.toFixed(2)} seconds per checkout</p>
           <p>All-Time Average: {allTimeAverage.toFixed(2)} seconds per checkout</p>
           <p>Total Games Played: {gameStats.totalGames}</p>
+          
+          {lastTenGameTimes.length > 0 && renderGraph(lastTenGameTimes)}
         </div>
 
         <div className="checkout-stats">
@@ -555,7 +725,10 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
         <li>Valid but not optimal: 50 points</li>
         <li>Time bonus: up to {MAX_TIME_BONUS} points (decreases over {TIME_BONUS_CUTOFF} seconds)</li>
       </ul>
-      <button onClick={startGame}>Start Game</button>
+      <button onClick={(e) => {
+        console.log('Start button clicked');
+        startGame();
+      }}>Start Game</button>
       
       {gameStats.totalGames > 0 && renderStatistics()}
     </div>
@@ -565,6 +738,24 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     const averageTime = gameState.totalTime / TOTAL_CHECKOUTS;
     const { best, worst } = getCheckoutPerformance();
     
+    // Get the last 10 unique game numbers
+    const lastTenGames = [...new Set(gameStats.checkoutAttempts
+      .map(attempt => attempt.gameNumber))]
+      .sort((a, b) => b - a)
+      .slice(0, 10);
+
+    // Calculate average time for each game
+    const lastTenGameTimes = lastTenGames.map(gameNumber => {
+      const gameAttempts = gameStats.checkoutAttempts
+        .filter(attempt => attempt.gameNumber === gameNumber);
+      return gameAttempts.reduce((sum, attempt) => sum + attempt.time, 0) / gameAttempts.length;
+    });
+
+    // Calculate recent average from the last 5 games
+    const recentAverage = lastTenGameTimes.slice(0, 5).length > 0
+      ? lastTenGameTimes.slice(0, 5).reduce((a, b) => a + b, 0) / lastTenGameTimes.slice(0, 5).length
+      : 0;
+
     return (
       <div className="game-complete">
         <div className="header-section">
@@ -581,15 +772,13 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
           <h3>Your Statistics</h3>
           <div className="time-stats">
             <h4>Time Performance</h4>
-            <p>Last 5 Games Average: {
-              gameStats.lastFiveGameTimes.length > 0
-                ? (gameStats.lastFiveGameTimes.reduce((a, b) => a + b, 0) / gameStats.lastFiveGameTimes.length).toFixed(2)
-                : '0.00'
-            } seconds per checkout</p>
+            <p>Last 5 Games Average: {recentAverage.toFixed(2)} seconds per checkout</p>
             <p>All-Time Average: {
               (gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS)).toFixed(2)
             } seconds per checkout</p>
             <p>Total Games Played: {gameStats.totalGames}</p>
+
+            {lastTenGameTimes.length > 0 && renderGraph(lastTenGameTimes)}
           </div>
 
           <div className="checkout-stats">

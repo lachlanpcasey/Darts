@@ -1,0 +1,244 @@
+.dartboard-interactive {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.section-group {
+  background-color: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.section-group h4 {
+  margin: 0 0 10px 0;
+  color: #2c3e50;
+  font-size: 1.1em;
+}
+
+.section-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 8px;
+}
+
+.dart-section {
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #3498db;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.dart-section:hover {
+  background-color: #2980b9;
+  transform: translateY(-1px);
+}
+
+.dart-section.special {
+  background-color: #e74c3c;
+  grid-column: span 2;
+}
+
+.dart-section.special:hover {
+  background-color: #c0392b;
+}
+
+/* Different colors for different section types */
+.section-group:nth-child(1) .dart-section {
+  background-color: #3498db; /* Singles - Blue */
+}
+
+.section-group:nth-child(2) .dart-section {
+  background-color: #2ecc71; /* Doubles - Green */
+}
+
+.section-group:nth-child(3) .dart-section {
+  background-color: #e74c3c; /* Triples - Red */
+}
+
+/* Hover states */
+.section-group:nth-child(1) .dart-section:hover {
+  background-color: #2980b9;
+}
+
+.section-group:nth-child(2) .dart-section:hover {
+  background-color: #27ae60;
+}
+
+.section-group:nth-child(3) .dart-section:hover {
+  background-color: #c0392b;
+}
+
+.dartboard-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+}
+
+.dartboard {
+  width: 100%;
+  height: auto;
+  background-color: #2c3e50;
+  border-radius: 50%;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+.segment {
+  stroke: #34495e;
+  stroke-width: 0.75;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.segment:hover {
+  opacity: 0.8;
+  filter: brightness(1.2);
+  transform-origin: center;
+  transform: scale(1.02);
+}
+
+/* Singles */
+.segment.single.even {
+  fill: #ecf0f1;
+}
+
+.segment.single.odd {
+  fill: #bdc3c7;
+}
+
+/* Doubles */
+.segment.double.even {
+  fill: #27ae60;
+}
+
+.segment.double.odd {
+  fill: #2ecc71;
+}
+
+/* Triples */
+.segment.triple.even {
+  fill: #c0392b;
+}
+
+.segment.triple.odd {
+  fill: #e74c3c;
+}
+
+/* Bulls */
+.single-bull {
+  fill: #27ae60;
+  stroke: #34495e;
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  pointer-events: all;
+}
+
+.double-bull {
+  fill: #c0392b;
+  stroke: #34495e;
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  pointer-events: all;
+}
+
+.single-bull:hover,
+.double-bull:hover {
+  opacity: 0.8;
+  filter: brightness(1.2);
+  transform-origin: center;
+  transform: scale(1.05);
+}
+
+/* Numbers */
+.segment-number {
+  fill: white;
+  font-size: 22px;
+  font-weight: bold;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  font-family: Arial, sans-serif;
+}
+
+/* Active states */
+.segment.active,
+.single-bull.active,
+.double-bull.active {
+  animation: pulse 1s infinite;
+  filter: brightness(1.3);
+  stroke-width: 1.5;
+  stroke: #f1c40f;
+}
+
+/* Tooltip */
+.dartboard-tooltip {
+  position: absolute;
+  background-color: rgba(44, 62, 80, 0.9);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 16px;
+  pointer-events: none;
+  transform: translate(-50%, -120%);
+  z-index: 1000;
+  white-space: nowrap;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  animation: tooltipFadeIn 0.2s ease-in-out;
+}
+
+.dartboard-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px 5px 0;
+  border-style: solid;
+  border-color: rgba(44, 62, 80, 0.9) transparent transparent;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    filter: brightness(1.3);
+  }
+  50% {
+    filter: brightness(1.5);
+  }
+  100% {
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -110%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -120%);
+  }
+}
+
+/* Click animation */
+.segment:active,
+.single-bull:active,
+.double-bull:active {
+  transform-origin: center;
+  transform: scale(0.98);
+  transition: transform 0.1s;
+} 

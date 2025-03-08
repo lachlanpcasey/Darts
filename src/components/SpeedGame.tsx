@@ -23,28 +23,22 @@ interface GameState {
     isOptimal: boolean;
   };
   showWrongAnimation: boolean;
-  wrongAttempts: Array<{
-    checkout: number;
-    attempt: string[];
-    optimalCheckout: string[];
-  }>;
-  nonOptimalAttempts: Array<{
-    checkout: number;
-    attempt: string[];
-    optimalCheckout: string[];
-  }>;
+  wrongAttempts: CheckoutAttempt[];
+  nonOptimalAttempts: CheckoutAttempt[];
 }
 
 interface ScoreRecord {
   score: number;
-  date: string;
+  datetime: number; // Store as timestamp (milliseconds since epoch)
   averageTime: number;
 }
 
 interface CheckoutAttempt {
   gameNumber: number;
   checkout: number;
-  time: number;
+  startTimestamp: number;  // Store raw timestamp in milliseconds
+  endTimestamp: number;    // Store raw timestamp in milliseconds
+  time: number;           // Calculated time difference in seconds
   isSuccessful: boolean;
   attempt: string[];
   optimalCheckout: string[];
@@ -215,9 +209,8 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   }, []);
 
   // Update high score and recent scores
-  const updateScores = (newScore: number) => {
-    // Calculate average time directly from the total time
-    const averageTime = gameState.totalTime;
+  const updateScores = (newScore: number, timeTaken: number) => {
+    console.log('Storing game with time:', timeTaken, 'seconds'); // Debug log
 
     if (newScore > highScore) {
       setHighScore(newScore);
@@ -226,15 +219,20 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
 
     const newScoreRecord: ScoreRecord = {
       score: newScore,
-      date: new Date().toLocaleDateString(),
-      averageTime
+      datetime: Date.now(),
+      averageTime: timeTaken
     };
+
+    console.log('New score record:', {
+      ...newScoreRecord,
+      formattedTime: new Date(newScoreRecord.datetime).toISOString()
+    }); // Debug log with readable time
 
     const updatedRecentScores = [newScoreRecord, ...recentScores].slice(0, MAX_RECENT_SCORES);
     setRecentScores(updatedRecentScores);
     localStorage.setItem('speedGameRecentScores', JSON.stringify(updatedRecentScores));
 
-    updateStats(averageTime);
+    updateStats(timeTaken);
   };
 
   // Load stats from localStorage on mount
@@ -246,40 +244,40 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   }, []);
 
   // Update stats when game completes
-  const updateStats = (averageTime: number) => {
+  const updateStats = (timeTaken: number) => {
+    console.log('Updating stats with time:', timeTaken, 'seconds'); // Debug log
+    
     setGameStats(prev => {
       const newStats = {
         ...prev,
         totalGames: prev.totalGames + 1,
-        totalTime: prev.totalTime + averageTime
+        totalTime: prev.totalTime + timeTaken
       };
 
       // Get all attempted checkouts from this game
       const allAttempts = [
         ...gameState.wrongAttempts,
         ...gameState.nonOptimalAttempts,
-        // Include successful attempts that aren't in the other arrays
+        // Include successful attempts
         {
+          gameNumber: newStats.totalGames,
           checkout: gameState.currentCheckout,
+          startTimestamp: gameState.startTime,
+          endTimestamp: Date.now(),
+          time: timeTaken,
+          isSuccessful: true,
           attempt: gameState.currentThrows,
           optimalCheckout: getOptimalCheckout(gameState.currentCheckout)
         }
       ];
 
-      // Add new attempts with game number
-      const newAttempts = allAttempts.map(attempt => ({
-        gameNumber: newStats.totalGames,
-        checkout: attempt.checkout,
-        time: averageTime,
-        isSuccessful: !gameState.wrongAttempts.find(w => w.checkout === attempt.checkout),
-        attempt: attempt.attempt,
-        optimalCheckout: attempt.optimalCheckout
-      }));
+      // Filter out any attempts with time === 0
+      const validAttempts = allAttempts.filter(attempt => attempt.time > 0);
 
-      newStats.checkoutAttempts = [...prev.checkoutAttempts, ...newAttempts];
+      newStats.checkoutAttempts = [...prev.checkoutAttempts, ...validAttempts];
 
       // Update stats for each checkout attempted in this game
-      allAttempts.forEach(attempt => {
+      validAttempts.forEach(attempt => {
         const currentStats = prev.checkoutStats[attempt.checkout] || {
           number: attempt.checkout,
           attempts: 0,
@@ -287,16 +285,22 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
           times: []
         };
 
-        const isSuccessful = !gameState.wrongAttempts.find(w => w.checkout === attempt.checkout);
+        const isSuccessful = attempt.isSuccessful;
 
         newStats.checkoutStats[attempt.checkout] = {
           ...currentStats,
           attempts: currentStats.attempts + 1,
           successfulAttempts: currentStats.successfulAttempts + (isSuccessful ? 1 : 0),
-          times: [...currentStats.times, averageTime]
+          times: isSuccessful ? [...currentStats.times, attempt.time] : currentStats.times
         };
       });
 
+      console.log('Saving new stats:', {
+        ...newStats,
+        checkoutStats: Object.fromEntries(
+          Object.entries(newStats.checkoutStats).map(([k, v]) => [k, {...v, times: v.times.map(t => Number(t.toFixed(2)))}])
+        )
+      }); // Debug log
       localStorage.setItem('speedGameStats', JSON.stringify(newStats));
       return newStats;
     });
@@ -341,11 +345,14 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
         return;
       }
       
+      const startTime = Date.now();
+      console.log('Setting initial start time:', startTime, new Date(startTime).toISOString());
+      
       const newGameState = {
         currentScore: 0,
         checkoutsCompleted: 0,
         currentCheckout: checkouts[0],
-        startTime: Date.now(),
+        startTime: startTime,
         totalTime: 0,
         currentThrows: [],
         message: 'Game started! Complete the checkout as quickly as possible.',
@@ -405,60 +412,31 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
   const handleSubmit = () => {
     const validation = validateAttempt(gameState.currentThrows, gameState.currentCheckout);
     const optimalCheckout = getOptimalCheckout(gameState.currentCheckout);
-    const timeTaken = (Date.now() - gameState.startTime) / 1000;
+    const endTimestamp = Date.now();
+    const timeTaken = Number(((endTimestamp - gameState.startTime) / 1000).toFixed(2));
+    
+    console.log('Attempt timing:', {
+      startTimestamp: gameState.startTime,
+      endTimestamp: endTimestamp,
+      timeDiff: endTimestamp - gameState.startTime,
+      timeTaken: timeTaken,
+      startTimeFormatted: new Date(gameState.startTime).toISOString(),
+      endTimeFormatted: new Date(endTimestamp).toISOString()
+    });
+    
     const timeBonus = calculateTimeBonus(timeTaken);
     
     let pointsEarned = 0;
     let isOptimal = false;
     
     if (validation.isValid) {
-      // Store the raw time without dividing
-      setGameState(prev => ({
-        ...prev,
-        totalTime: timeTaken
-      }));
+      pointsEarned = gameState.currentThrows.join(' ') === optimalCheckout.join(' ')
+        ? 300 // Perfect checkout
+        : gameState.currentThrows.length === optimalCheckout.length
+          ? 250 // Same number of darts
+          : 50;  // Valid but not optimal
 
-      // Check if the attempt matches the optimal checkout exactly
-      if (gameState.currentThrows.join(' ') === optimalCheckout.join(' ')) {
-        pointsEarned = 300;
-        isOptimal = true;
-      }
-      // Check if the attempt uses the same number of darts as optimal
-      else if (gameState.currentThrows.length === optimalCheckout.length) {
-        pointsEarned = 250;
-        // Store non-optimal but valid attempt
-        setGameState(prev => ({
-          ...prev,
-          nonOptimalAttempts: [...prev.nonOptimalAttempts, {
-            checkout: prev.currentCheckout,
-            attempt: prev.currentThrows,
-            optimalCheckout
-          }]
-        }));
-      }
-      // Valid but not optimal number of darts
-      else {
-        pointsEarned = 50;
-        // Store non-optimal attempt
-        setGameState(prev => ({
-          ...prev,
-          nonOptimalAttempts: [...prev.nonOptimalAttempts, {
-            checkout: prev.currentCheckout,
-            attempt: prev.currentThrows,
-            optimalCheckout
-          }]
-        }));
-      }
-    } else {
-      // Store wrong attempt
-      setGameState(prev => ({
-        ...prev,
-        wrongAttempts: [...prev.wrongAttempts, {
-          checkout: prev.currentCheckout,
-          attempt: prev.currentThrows,
-          optimalCheckout
-        }]
-      }));
+      isOptimal = pointsEarned === 300;
     }
 
     const finalScore = gameState.currentScore + pointsEarned + timeBonus;
@@ -469,30 +447,52 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
       ? `Correct! ${isOptimal ? 'Perfect checkout! ' : ''} +${pointsEarned} points${timeBonus > 0 ? ` (+${timeBonus} time bonus)` : ''}`
       : 'Wrong attempt. Try again!';
 
+    // Create the attempt record
+    const attemptRecord = {
+      gameNumber: gameStats.totalGames + 1,
+      checkout: gameState.currentCheckout,
+      startTimestamp: gameState.startTime,
+      endTimestamp: endTimestamp,
+      time: timeTaken,
+      isSuccessful: validation.isValid,
+      attempt: gameState.currentThrows,
+      optimalCheckout: optimalCheckout
+    };
+
     setGameState(prev => ({
       ...prev,
+      currentScore: finalScore,
+      totalTime: validation.isValid ? timeTaken : prev.totalTime,
       showScoreAnimation: {
         show: validation.isValid,
         points: pointsEarned + timeBonus,
         isOptimal
       },
-      showWrongAnimation: !validation.isValid
+      showWrongAnimation: !validation.isValid,
+      nonOptimalAttempts: validation.isValid && !isOptimal 
+        ? [...prev.nonOptimalAttempts, attemptRecord]
+        : prev.nonOptimalAttempts,
+      wrongAttempts: !validation.isValid 
+        ? [...prev.wrongAttempts, attemptRecord]
+        : prev.wrongAttempts
     }));
 
     setTimeout(() => {
       if (isGameComplete) {
-        updateScores(finalScore);
+        console.log('Game complete, storing final time:', timeTaken, 'seconds'); // Debug log
+        updateScores(finalScore, timeTaken);
       }
 
       const nextCheckout = isGameComplete ? 0 : getRandomCheckouts(1)[0];
+      const newStartTime = Date.now();
+      console.log('Setting new start time:', newStartTime, new Date(newStartTime).toISOString());
 
       setGameState(prev => ({
         ...prev,
-        currentScore: finalScore,
         checkoutsCompleted: nextCheckoutIndex,
         currentCheckout: nextCheckout,
         currentThrows: [],
-        startTime: Date.now(),
+        startTime: newStartTime,
         message,
         isGameComplete,
         showScoreAnimation: {
@@ -652,27 +652,41 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     );
   };
 
+  // Stats calculation helper functions
+  const getLastNUniqueGames = (attempts: CheckoutAttempt[], n: number): number[] => {
+    return [...new Set(attempts.map(attempt => attempt.gameNumber))]
+      .sort((a, b) => b - a)
+      .slice(0, n);
+  };
+
+  const calculateAverageTimeForGame = (attempts: CheckoutAttempt[], gameNumber: number): number => {
+    const gameAttempts = attempts.filter(attempt => attempt.gameNumber === gameNumber);
+    return gameAttempts.reduce((sum, attempt) => sum + attempt.time, 0) / gameAttempts.length;
+  };
+
+  const getGameTimes = (attempts: CheckoutAttempt[], gameNumbers: number[]): number[] => {
+    return gameNumbers.map(gameNumber => calculateAverageTimeForGame(attempts, gameNumber));
+  };
+
+  const calculateRecentAverage = (times: number[], n: number): number => {
+    const recentTimes = times.slice(0, n);
+    return recentTimes.length > 0
+      ? recentTimes.reduce((a, b) => a + b, 0) / recentTimes.length
+      : 0;
+  };
+
+  const calculateAllTimeAverage = (totalTime: number, totalGames: number): number => {
+    return totalTime / (totalGames * TOTAL_CHECKOUTS);
+  };
+
   const renderStatistics = () => {
     const { best, worst } = getCheckoutPerformance();
-    const allTimeAverage = gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS);
+    const allTimeAverage = calculateAllTimeAverage(gameStats.totalTime, gameStats.totalGames);
     
-    // Get the last 10 unique game numbers
-    const lastTenGames = [...new Set(gameStats.checkoutAttempts
-      .map(attempt => attempt.gameNumber))]
-      .sort((a, b) => b - a)
-      .slice(0, 10);
-
-    // Calculate average time for each game
-    const lastTenGameTimes = lastTenGames.map(gameNumber => {
-      const gameAttempts = gameStats.checkoutAttempts
-        .filter(attempt => attempt.gameNumber === gameNumber);
-      return gameAttempts.reduce((sum, attempt) => sum + attempt.time, 0) / gameAttempts.length;
-    });
-
-    // Calculate recent average from the last 5 games
-    const recentAverage = lastTenGameTimes.slice(0, 5).length > 0
-      ? lastTenGameTimes.slice(0, 5).reduce((a, b) => a + b, 0) / lastTenGameTimes.slice(0, 5).length
-      : 0;
+    // Get game times for the last 10 games
+    const lastTenGames = getLastNUniqueGames(gameStats.checkoutAttempts, 10);
+    const lastTenGameTimes = getGameTimes(gameStats.checkoutAttempts, lastTenGames);
+    const recentAverage = calculateRecentAverage(lastTenGameTimes, 5);
 
     return (
       <div className="statistics">
@@ -738,23 +752,11 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     const averageTime = gameState.totalTime / TOTAL_CHECKOUTS;
     const { best, worst } = getCheckoutPerformance();
     
-    // Get the last 10 unique game numbers
-    const lastTenGames = [...new Set(gameStats.checkoutAttempts
-      .map(attempt => attempt.gameNumber))]
-      .sort((a, b) => b - a)
-      .slice(0, 10);
-
-    // Calculate average time for each game
-    const lastTenGameTimes = lastTenGames.map(gameNumber => {
-      const gameAttempts = gameStats.checkoutAttempts
-        .filter(attempt => attempt.gameNumber === gameNumber);
-      return gameAttempts.reduce((sum, attempt) => sum + attempt.time, 0) / gameAttempts.length;
-    });
-
-    // Calculate recent average from the last 5 games
-    const recentAverage = lastTenGameTimes.slice(0, 5).length > 0
-      ? lastTenGameTimes.slice(0, 5).reduce((a, b) => a + b, 0) / lastTenGameTimes.slice(0, 5).length
-      : 0;
+    // Get game times for the last 10 games
+    const lastTenGames = getLastNUniqueGames(gameStats.checkoutAttempts, 10);
+    const lastTenGameTimes = getGameTimes(gameStats.checkoutAttempts, lastTenGames);
+    const recentAverage = calculateRecentAverage(lastTenGameTimes, 5);
+    const allTimeAverage = calculateAllTimeAverage(gameStats.totalTime, gameStats.totalGames);
 
     return (
       <div className="game-complete">
@@ -773,9 +775,7 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
           <div className="time-stats">
             <h4>Time Performance</h4>
             <p>Last 5 Games Average: {recentAverage.toFixed(2)} seconds per checkout</p>
-            <p>All-Time Average: {
-              (gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS)).toFixed(2)
-            } seconds per checkout</p>
+            <p>All-Time Average: {allTimeAverage.toFixed(2)} seconds per checkout</p>
             <p>Total Games Played: {gameStats.totalGames}</p>
 
             {lastTenGameTimes.length > 0 && renderGraph(lastTenGameTimes)}

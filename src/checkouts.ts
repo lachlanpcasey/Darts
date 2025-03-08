@@ -139,7 +139,7 @@ export const checkouts: Checkout[] = [
   { score: 135, combinations: [['T20', 'T15', 'D15']], optimalCombinations: [['T20', 'T15', 'D15']] },
   { score: 134, combinations: [['T20', 'T14', 'D16']], optimalCombinations: [['T20', 'T14', 'D16']] },
   { score: 133, combinations: [['T20', 'T19', 'D8']], optimalCombinations: [['T20', 'T19', 'D8']] },
-  { score: 132, combinations: [['T20', 'T20', 'D6']], optimalCombinations: [['T20', 'T20', 'D6']] },
+  { score: 132, combinations: [['BULL', 'BULL', 'D16']], optimalCombinations: [['BULL', 'BULL', 'D16']] },
   { score: 131, combinations: [['T20', 'T13', 'D16']], optimalCombinations: [['T20', 'T13', 'D16']] },
 
   // 130-121

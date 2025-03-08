@@ -173,16 +173,141 @@
   padding: 30px;
   background-color: #f8f9fa;
   border-radius: 10px;
+  margin: 20px auto;
+  max-width: 1200px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  align-items: start;
+}
+
+.game-complete .header-section {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.game-complete .game-stats {
+  grid-column: 1;
+  flex-direction: column;
+  gap: 20px;
+  margin: 0;
+}
+
+.game-complete .attempts-section {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.game-complete .wrong-attempts,
+.game-complete .non-optimal-attempts {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 0;
+}
+
+.game-complete button {
+  grid-column: 1 / -1;
+  justify-self: center;
   margin-top: 20px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+}
+
+@media (max-width: 1200px) {
+  .game-complete {
+    grid-template-columns: 1fr;
+    max-width: 800px;
+  }
+
+  .game-complete .game-stats,
+  .game-complete .attempts-section {
+    grid-column: 1;
+  }
+}
+
+.attempt-review {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px 0;
+  text-align: left;
+}
+
+.attempt-review p {
+  margin: 5px 0;
+}
+
+.attempt-review p:first-child {
+  font-weight: bold;
+  color: #2c3e50;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+.wrong-attempts .attempt-review {
+  border-left: 4px solid #e74c3c;
+}
+
+.non-optimal-attempts .attempt-review {
+  border-left: 4px solid #f1c40f;
+}
+
+.game-complete .checkout-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+@media (max-width: 600px) {
+  .game-complete .checkout-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.game-complete .best-checkouts,
+.game-complete .worst-checkouts {
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.game-complete .checkout-stat {
+  margin: 15px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.game-complete .best-checkouts .checkout-stat {
+  border-left: 4px solid #2ecc71;
+}
+
+.game-complete .worst-checkouts .checkout-stat {
+  border-left: 4px solid #e74c3c;
 }
 
 .game-complete h3 {
   color: #2c3e50;
-  margin-bottom: 15px;
-  font-size: 1.8em;
+  margin-bottom: 20px;
+}
+
+.game-complete h4 {
+  color: #34495e;
+  margin: 10px 0;
+}
+
+.game-complete .checkout-stat p {
+  margin: 5px 0;
+  color: #2c3e50;
+}
+
+.game-complete .checkout-stat p:first-child {
+  font-weight: bold;
+  color: #2c3e50;
 }
 
 .play-again-button {
@@ -214,13 +339,46 @@
 }
 
 .start-screen {
-  max-width: 600px;
+  max-width: 1200px;
   margin: 40px auto;
   padding: 40px;
   background-color: white;
   border-radius: 15px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-  text-align: center;
+}
+
+.start-screen .game-stats {
+  flex-direction: column;
+  gap: 20px;
+}
+
+.start-screen .statistics {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.start-screen .time-stats {
+  grid-column: 1;
+}
+
+.start-screen .checkout-stats {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1200px) {
+  .start-screen .statistics {
+    grid-template-columns: 1fr;
+  }
+  
+  .start-screen .time-stats,
+  .start-screen .checkout-stats {
+    grid-column: auto;
+  }
 }
 
 .start-screen h2 {
@@ -456,4 +614,82 @@
 .wrong-attempt p:last-child {
   color: #27ae60;
   font-weight: bold;
+}
+
+.statistics {
+  margin-top: 40px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.statistics h3 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.statistics h4 {
+  color: #34495e;
+  margin: 15px 0;
+  font-size: 1.1em;
+}
+
+.time-stats {
+  margin-bottom: 30px;
+  padding: 15px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.time-stats p {
+  margin: 10px 0;
+  color: #2c3e50;
+}
+
+.checkout-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.best-checkouts,
+.worst-checkouts {
+  padding: 15px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.checkout-stat {
+  margin: 15px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+}
+
+.best-checkouts .checkout-stat {
+  border-left: 4px solid #2ecc71;
+}
+
+.worst-checkouts .checkout-stat {
+  border-left: 4px solid #e74c3c;
+}
+
+.checkout-stat p {
+  margin: 5px 0;
+  color: #2c3e50;
+}
+
+.checkout-stat p:first-child {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+@media (max-width: 768px) {
+  .checkout-stats {
+    grid-template-columns: 1fr;
+  }
 } 

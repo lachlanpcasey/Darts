@@ -12,6 +12,7 @@ interface GameState {
   checkoutsCompleted: number;
   currentCheckout: number;
   startTime: number;
+  totalTime: number;
   currentThrows: string[];
   message: string;
   isGameComplete: boolean;
@@ -27,30 +28,60 @@ interface GameState {
     attempt: string[];
     optimalCheckout: string[];
   }>;
+  nonOptimalAttempts: Array<{
+    checkout: number;
+    attempt: string[];
+    optimalCheckout: string[];
+  }>;
 }
 
 interface ScoreRecord {
   score: number;
   date: string;
+  averageTime: number;
 }
 
-const TOTAL_CHECKOUTS = 5;
-const BASE_POINTS_OPTIMAL = 200;
-const BASE_POINTS_VALID = 100;
+interface CheckoutStats {
+  number: number;
+  attempts: number;
+  successfulAttempts: number;
+  times: number[];
+}
+
+interface GameStats {
+  checkoutStats: { [key: number]: CheckoutStats };
+  lastFiveGameTimes: number[];
+  totalGames: number;
+  totalTime: number;
+}
+
+const TOTAL_CHECKOUTS = 1;
 const TIME_BONUS_CUTOFF = 15; // seconds
 const MAX_TIME_BONUS = 1000; // points
 const MAX_RECENT_SCORES = 5;
 
-// Generate all valid checkout numbers between 41 and 170
-const generateValidCheckouts = (): number[] => {
-  const checkouts: number[] = [];
-  for (let i = 41; i <= 170; i++) {
-    // Skip impossible checkouts
-    if (i === 169 || i === 168 || i === 166 || i === 165 || i === 163 || i === 162 || i === 159) continue;
-    checkouts.push(i);
-  }
-  return checkouts;
-};
+// Generate valid checkouts between 41 and 170
+function generateValidCheckouts(): number[] {
+  // Define preset valid checkouts instead of calculating them
+  const validCheckouts = [
+    // High checkouts (120-170)
+    170, 167, 164, 161, 160, 158, 157, 156, 155, 154, 153, 152, 151, 150,
+    149, 148, 147, 146, 145, 144, 143, 142, 141, 140, 139, 138, 137, 136,
+    135, 134, 133, 132, 131, 130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 120,
+    
+    // Medium checkouts (81-120)
+    119, 118, 117, 116, 115, 114, 113, 112, 111, 110, 109, 108, 107, 106,
+    105, 104, 103, 102, 101, 100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90,
+    89, 88, 87, 86, 85, 84, 83, 82, 81,
+    
+    // Low checkouts (41-80)
+    80, 79, 78, 77, 76, 75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64,
+    63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47,
+    46, 45, 44, 43, 42, 41
+  ];
+  
+  return validCheckouts;
+}
 
 const VALID_CHECKOUTS = generateValidCheckouts();
 
@@ -60,6 +91,7 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     checkoutsCompleted: 0,
     currentCheckout: 0,
     startTime: 0,
+    totalTime: 0,
     currentThrows: [],
     message: '',
     isGameComplete: false,
@@ -70,22 +102,96 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
       isOptimal: false
     },
     showWrongAnimation: false,
-    wrongAttempts: []
+    wrongAttempts: [],
+    nonOptimalAttempts: []
   });
 
   const [highScore, setHighScore] = useState<number>(0);
   const [recentScores, setRecentScores] = useState<ScoreRecord[]>([]);
+  const [gameStats, setGameStats] = useState<GameStats>({
+    checkoutStats: {},
+    lastFiveGameTimes: [],
+    totalGames: 0,
+    totalTime: 0
+  });
 
-  // Helper function to get random checkouts
+  // Helper function to get random checkouts with better distribution
   const getRandomCheckouts = (count: number): number[] => {
-    const shuffled = [...VALID_CHECKOUTS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
+    // Safety check
+    if (count <= 0) return [];
+    
+    // Get all valid checkouts from the predefined checkouts array
+    const allValidCheckouts = VALID_CHECKOUTS.filter(n => !isNaN(n));
+
+    // Split checkouts into ranges
+    const ranges = {
+      low: allValidCheckouts.filter(n => n <= 80),
+      medium: allValidCheckouts.filter(n => n > 80 && n <= 120),
+      high: allValidCheckouts.filter(n => n > 120 && n <= 170)
+    };
+
+    const selectedCheckouts: number[] = [];
+    
+    // Helper to get random item from array
+    const getRandomItem = (arr: number[]): number | null => {
+      if (!arr || arr.length === 0) return null;
+      return arr[Math.floor(Math.random() * arr.length)];
+    };
+    
+    // For 5 checkouts, try to get: 2 high, 2 medium, 1 low
+    if (count === TOTAL_CHECKOUTS) {
+      // Add 1 very high checkout (150+)
+      const veryHighCheckouts = ranges.high.filter(n => n >= 150);
+      const veryHigh = getRandomItem(veryHighCheckouts);
+      if (veryHigh) selectedCheckouts.push(veryHigh);
+
+      // Add 1 high checkout (120-149)
+      const highCheckouts = ranges.high.filter(n => n < 150 && !selectedCheckouts.includes(n));
+      const high = getRandomItem(highCheckouts);
+      if (high) selectedCheckouts.push(high);
+      
+      // Add 2 medium checkouts (81-120)
+      for (let i = 0; i < 2 && selectedCheckouts.length < count; i++) {
+        const availableMedium = ranges.medium.filter(n => !selectedCheckouts.includes(n));
+        const medium = getRandomItem(availableMedium);
+        if (medium) selectedCheckouts.push(medium);
+      }
+      
+      // Add 1 low checkout (41-80)
+      if (selectedCheckouts.length < count) {
+        const availableLow = ranges.low.filter(n => !selectedCheckouts.includes(n));
+        const low = getRandomItem(availableLow);
+        if (low) selectedCheckouts.push(low);
+      }
+
+      // If we still don't have enough checkouts, fill with random ones
+      while (selectedCheckouts.length < count) {
+        const available = allValidCheckouts.filter(n => !selectedCheckouts.includes(n));
+        const random = getRandomItem(available);
+        if (random) selectedCheckouts.push(random);
+        else break; // Prevent infinite loop
+      }
+      
+      // Shuffle the final array
+      return selectedCheckouts.sort(() => Math.random() - 0.5);
+    }
+    
+    // For single checkout, use weighted random
+    const weightedCheckouts = [
+      ...ranges.high, ...ranges.high,  // Double weight for high
+      ...ranges.medium,                // Normal weight for medium
+      ...ranges.low                    // Normal weight for low
+    ];
+    
+    const single = getRandomItem(weightedCheckouts);
+    return single ? [single] : [getRandomItem(allValidCheckouts) || 60]; // Fallback to 60 if all else fails
   };
 
-  // Load scores from localStorage on component mount
+  // Load scores and stats from localStorage on component mount
   useEffect(() => {
     const storedHighScore = localStorage.getItem('speedGameHighScore');
     const storedRecentScores = localStorage.getItem('speedGameRecentScores');
+    const storedStats = localStorage.getItem('speedGameStats');
     
     if (storedHighScore) {
       setHighScore(parseInt(storedHighScore));
@@ -93,54 +199,150 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     if (storedRecentScores) {
       setRecentScores(JSON.parse(storedRecentScores));
     }
+    if (storedStats) {
+      setGameStats(JSON.parse(storedStats));
+    }
   }, []);
 
   // Update high score and recent scores
   const updateScores = (newScore: number) => {
-    // Update high score if necessary
+    const averageTime = gameState.totalTime / TOTAL_CHECKOUTS;
+
     if (newScore > highScore) {
       setHighScore(newScore);
       localStorage.setItem('speedGameHighScore', newScore.toString());
     }
 
-    // Add to recent scores
     const newScoreRecord: ScoreRecord = {
       score: newScore,
-      date: new Date().toLocaleDateString()
+      date: new Date().toLocaleDateString(),
+      averageTime
     };
 
     const updatedRecentScores = [newScoreRecord, ...recentScores].slice(0, MAX_RECENT_SCORES);
     setRecentScores(updatedRecentScores);
     localStorage.setItem('speedGameRecentScores', JSON.stringify(updatedRecentScores));
+
+    updateStats(averageTime);
+  };
+
+  // Load stats from localStorage on mount
+  useEffect(() => {
+    const storedStats = localStorage.getItem('speedGameStats');
+    if (storedStats) {
+      setGameStats(JSON.parse(storedStats));
+    }
+  }, []);
+
+  // Update stats when game completes
+  const updateStats = (averageTime: number) => {
+    setGameStats(prev => {
+      const newStats = {
+        ...prev,
+        lastFiveGameTimes: [averageTime, ...prev.lastFiveGameTimes].slice(0, 5),
+        totalGames: prev.totalGames + 1,
+        totalTime: prev.totalTime + (averageTime * TOTAL_CHECKOUTS)
+      };
+
+      // Get all attempted checkouts from this game
+      const allAttempts = [
+        ...gameState.wrongAttempts,
+        ...gameState.nonOptimalAttempts,
+        // Include successful attempts that aren't in the other arrays
+        {
+          checkout: gameState.currentCheckout,
+          attempt: gameState.currentThrows,
+          optimalCheckout: getOptimalCheckout(gameState.currentCheckout)
+        }
+      ];
+
+      // Update stats for each checkout attempted in this game
+      allAttempts.forEach(attempt => {
+        const currentStats = prev.checkoutStats[attempt.checkout] || {
+          number: attempt.checkout,
+          attempts: 0,
+          successfulAttempts: 0,
+          times: []
+        };
+
+        const isSuccessful = !gameState.wrongAttempts.find(w => w.checkout === attempt.checkout);
+
+        newStats.checkoutStats[attempt.checkout] = {
+          ...currentStats,
+          attempts: currentStats.attempts + 1,
+          successfulAttempts: currentStats.successfulAttempts + (isSuccessful ? 1 : 0),
+          times: [...currentStats.times, averageTime]
+        };
+      });
+
+      localStorage.setItem('speedGameStats', JSON.stringify(newStats));
+      return newStats;
+    });
+  };
+
+  // Helper function to get median time for a checkout
+  const getMedianTime = (times: number[]): number => {
+    if (times.length === 0) return 0;
+    const sorted = [...times].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  };
+
+  // Helper function to get best and worst checkouts
+  const getCheckoutPerformance = () => {
+    const checkouts = Object.values(gameStats.checkoutStats)
+      .filter(stat => stat.times.length >= 1) // Changed from 2 to 1 to show stats after first attempt
+      .map(stat => ({
+        number: stat.number,
+        medianTime: getMedianTime(stat.times),
+        successRate: (stat.successfulAttempts / stat.attempts) * 100
+      }))
+      .sort((a, b) => a.medianTime - b.medianTime);
+
+    return {
+      best: checkouts.slice(0, 3),
+      worst: checkouts.slice(-3).reverse()
+    };
   };
 
   // Initialize or reset the game
   const startGame = () => {
-    const checkouts = getRandomCheckouts(TOTAL_CHECKOUTS);
-    
-    setGameState({
-      currentScore: 0,
-      checkoutsCompleted: 0,
-      currentCheckout: checkouts[0],
-      startTime: Date.now(),
-      currentThrows: [],
-      message: 'Game started! Complete the checkout as quickly as possible.',
-      isGameComplete: false,
-      hasStarted: true,
-      showScoreAnimation: {
-        show: false,
-        points: 0,
-        isOptimal: false
-      },
-      showWrongAnimation: false,
-      wrongAttempts: []
-    });
+    try {
+      const checkouts = getRandomCheckouts(TOTAL_CHECKOUTS);
+      if (!checkouts.length) {
+        console.error('Failed to generate checkouts');
+        return;
+      }
+      
+      setGameState({
+        currentScore: 0,
+        checkoutsCompleted: 0,
+        currentCheckout: checkouts[0],
+        startTime: Date.now(),
+        totalTime: 0,
+        currentThrows: [],
+        message: 'Game started! Complete the checkout as quickly as possible.',
+        isGameComplete: false,
+        hasStarted: true,
+        showScoreAnimation: {
+          show: false,
+          points: 0,
+          isOptimal: false
+        },
+        showWrongAnimation: false,
+        wrongAttempts: [],
+        nonOptimalAttempts: []
+      });
+    } catch (error) {
+      console.error('Error starting game:', error);
+    }
   };
 
   // Calculate time bonus based on how quickly the checkout was completed
   const calculateTimeBonus = (timeTaken: number): number => {
     if (timeTaken > TIME_BONUS_CUTOFF) return 0;
-    // Linear decrease from MAX_TIME_BONUS to 0 over TIME_BONUS_CUTOFF seconds
     return Math.floor(MAX_TIME_BONUS * (1 - timeTaken / TIME_BONUS_CUTOFF));
   };
 
@@ -171,62 +373,89 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
     return allCombos.length > 0 ? allCombos[0] : [];
   };
 
-  // Handle submission of a checkout attempt
+  // Handle submit
   const handleSubmit = () => {
-    if (gameState.isGameComplete) return;
-
-    const timeTaken = (Date.now() - gameState.startTime) / 1000;
     const validation = validateAttempt(gameState.currentThrows, gameState.currentCheckout);
+    const optimalCheckout = getOptimalCheckout(gameState.currentCheckout);
+    const timeTaken = (Date.now() - gameState.startTime) / 1000;
+    const timeBonus = calculateTimeBonus(timeTaken);
+    
     let pointsEarned = 0;
-    let message = '';
-
+    let isOptimal = false;
+    
     if (validation.isValid) {
-      const timeBonus = calculateTimeBonus(timeTaken);
-      pointsEarned = validation.isOptimal ? BASE_POINTS_OPTIMAL : BASE_POINTS_VALID;
-      pointsEarned += timeBonus;
-
+      // Update total time only for successful attempts
       setGameState(prev => ({
         ...prev,
-        showScoreAnimation: {
-          show: true,
-          points: pointsEarned,
-          isOptimal: validation.isOptimal
-        },
-        showWrongAnimation: false
+        totalTime: prev.totalTime + timeTaken
       }));
 
-      message = `Correct! ${validation.isOptimal ? 'Optimal solution! ' : ''}` +
-                `Base points: ${validation.isOptimal ? BASE_POINTS_OPTIMAL : BASE_POINTS_VALID}, ` +
-                `Time bonus: ${timeBonus}. Total: ${pointsEarned}`;
+      // Check if the attempt matches the optimal checkout exactly
+      if (gameState.currentThrows.join(' ') === optimalCheckout.join(' ')) {
+        pointsEarned = 300;
+        isOptimal = true;
+      }
+      // Check if the attempt uses the same number of darts as optimal
+      else if (gameState.currentThrows.length === optimalCheckout.length) {
+        pointsEarned = 250;
+        // Store non-optimal but valid attempt
+        setGameState(prev => ({
+          ...prev,
+          nonOptimalAttempts: [...prev.nonOptimalAttempts, {
+            checkout: prev.currentCheckout,
+            attempt: prev.currentThrows,
+            optimalCheckout
+          }]
+        }));
+      }
+      // Valid but not optimal number of darts
+      else {
+        pointsEarned = 50;
+        // Store non-optimal attempt
+        setGameState(prev => ({
+          ...prev,
+          nonOptimalAttempts: [...prev.nonOptimalAttempts, {
+            checkout: prev.currentCheckout,
+            attempt: prev.currentThrows,
+            optimalCheckout
+          }]
+        }));
+      }
     } else {
-      // Show wrong animation and store the wrong attempt
+      // Store wrong attempt
       setGameState(prev => ({
         ...prev,
-        showWrongAnimation: true,
-        showScoreAnimation: {
-          show: false,
-          points: 0,
-          isOptimal: false
-        },
         wrongAttempts: [...prev.wrongAttempts, {
           checkout: prev.currentCheckout,
           attempt: prev.currentThrows,
-          optimalCheckout: getOptimalCheckout(prev.currentCheckout)
+          optimalCheckout
         }]
       }));
-      message = 'Invalid checkout.';
     }
 
-    const nextCheckoutIndex = gameState.checkoutsCompleted + 1;
+    const finalScore = gameState.currentScore + pointsEarned + timeBonus;
+    const nextCheckoutIndex = gameState.checkoutsCompleted + (validation.isValid ? 1 : 0);
     const isGameComplete = nextCheckoutIndex >= TOTAL_CHECKOUTS;
-    const finalScore = gameState.currentScore + (validation.isValid ? pointsEarned : 0);
+
+    let message = validation.isValid
+      ? `Correct! ${isOptimal ? 'Perfect checkout! ' : ''} +${pointsEarned} points${timeBonus > 0 ? ` (+${timeBonus} time bonus)` : ''}`
+      : 'Wrong attempt. Try again!';
+
+    setGameState(prev => ({
+      ...prev,
+      showScoreAnimation: {
+        show: validation.isValid,
+        points: pointsEarned + timeBonus,
+        isOptimal
+      },
+      showWrongAnimation: !validation.isValid
+    }));
 
     setTimeout(() => {
       if (isGameComplete) {
         updateScores(finalScore);
       }
 
-      // Get a new random checkout for the next round
       const nextCheckout = isGameComplete ? 0 : getRandomCheckouts(1)[0];
 
       setGameState(prev => ({
@@ -263,78 +492,163 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
 
   // Helper function to get score color
   const getScoreColor = (score: number): string => {
-    if (score >= 750) return 'green';
-    if (score >= 300) return 'orange';
-    return 'red';
+    if (score >= 2500) return '#27ae60'; // Perfect game
+    if (score >= 2000) return '#2ecc71'; // Very good
+    if (score >= 1500) return '#f1c40f'; // Good
+    if (score >= 1000) return '#e67e22'; // Average
+    return '#e74c3c'; // Below average
   };
 
-  const renderScoreBoard = () => (
-    <div className="score-board">
-      <div className="high-score">
-        <h3>High Score</h3>
-        <p>{highScore}</p>
-      </div>
-      {recentScores.length > 0 && (
-        <div className="recent-scores">
-          <h3>Recent Scores</h3>
-          <ul>
-            {recentScores.map((record, index) => (
-              <li key={index}>
-                <span>{record.score}</span>
-                <span>{record.date}</span>
-              </li>
-            ))}
-          </ul>
+  const renderStatistics = () => {
+    const { best, worst } = getCheckoutPerformance();
+    const allTimeAverage = gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS);
+    const recentAverage = gameStats.lastFiveGameTimes.length > 0
+      ? gameStats.lastFiveGameTimes.reduce((a, b) => a + b, 0) / gameStats.lastFiveGameTimes.length
+      : 0;
+
+    return (
+      <div className="statistics">
+        <h3>Statistics</h3>
+        
+        <div className="time-stats">
+          <h4>Time Performance</h4>
+          <p>Last 5 Games Average: {recentAverage.toFixed(2)} seconds per checkout</p>
+          <p>All-Time Average: {allTimeAverage.toFixed(2)} seconds per checkout</p>
+          <p>Total Games Played: {gameStats.totalGames}</p>
         </div>
-      )}
-    </div>
-  );
+
+        <div className="checkout-stats">
+          <div className="best-checkouts">
+            <h4>Best Checkouts</h4>
+            {best.map(checkout => (
+              <div key={checkout.number} className="checkout-stat">
+                <p>Checkout {checkout.number}</p>
+                <p>Average Time: {checkout.medianTime.toFixed(2)}s</p>
+                <p>Success Rate: {checkout.successRate.toFixed(1)}%</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="worst-checkouts">
+            <h4>Most Challenging Checkouts</h4>
+            {worst.map(checkout => (
+              <div key={checkout.number} className="checkout-stat">
+                <p>Checkout {checkout.number}</p>
+                <p>Average Time: {checkout.medianTime.toFixed(2)}s</p>
+                <p>Success Rate: {checkout.successRate.toFixed(1)}%</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderStartScreen = () => (
     <div className="start-screen">
-      <h2>Speed Checkout Challenge</h2>
-      <p>Complete 5 checkouts as quickly as possible!</p>
+      <h2>Speed Checkout Game</h2>
+      <p>Complete {TOTAL_CHECKOUTS} checkouts as quickly as possible.</p>
+      <p>Scoring:</p>
       <ul>
-        <li>200 points for optimal checkouts</li>
-        <li>100 points for valid checkouts</li>
-        <li>Up to 1000 bonus points based on speed (decreases over 15 seconds)</li>
+        <li>Perfect checkout: 300 points</li>
+        <li>Same number of darts as optimal: 250 points</li>
+        <li>Valid but not optimal: 50 points</li>
+        <li>Time bonus: up to {MAX_TIME_BONUS} points (decreases over {TIME_BONUS_CUTOFF} seconds)</li>
       </ul>
-      {renderScoreBoard()}
-      <button className="start-game-button" onClick={startGame}>
-        Start Challenge
-      </button>
+      <button onClick={startGame}>Start Game</button>
+      
+      {gameStats.totalGames > 0 && renderStatistics()}
     </div>
   );
 
-  const renderGameComplete = () => (
-    <div className="game-complete">
-      <h3>Game Complete!</h3>
-      <p style={{ color: getScoreColor(gameState.currentScore), fontSize: '1.5em', fontWeight: 'bold' }}>
-        Final Score: {gameState.currentScore}
-      </p>
-      
-      {gameState.wrongAttempts.length > 0 && (
-        <div className="wrong-attempts">
-          <h4>Incorrect Attempts:</h4>
-          {gameState.wrongAttempts.map((attempt, index) => (
-            <div key={index} className="wrong-attempt">
-              <p>Checkout {attempt.checkout}:</p>
-              <p>Your attempt: {attempt.attempt.join(' → ')}</p>
-              <p>Optimal checkout: {attempt.optimalCheckout.join(' → ')}</p>
-            </div>
-          ))}
+  const renderGameComplete = () => {
+    const averageTime = gameState.totalTime / TOTAL_CHECKOUTS;
+    const { best, worst } = getCheckoutPerformance();
+    
+    return (
+      <div className="game-complete">
+        <div className="header-section">
+          <h2>Game Complete!</h2>
+          <p className="final-score" style={{ color: getScoreColor(gameState.currentScore) }}>
+            Final Score: {gameState.currentScore}
+          </p>
+          <p className="average-time">
+            Average Time per Checkout: {averageTime.toFixed(2)} seconds
+          </p>
         </div>
-      )}
-      
-      {gameState.currentScore === highScore && (
-        <div className="new-high-score">New High Score! 🎉</div>
-      )}
-      {renderScoreBoard()}
-      <button className="play-again-button" onClick={startGame}>
-        Play Again
-      </button>
-    </div>
-  );
+
+        <div className="game-stats">
+          <h3>Your Statistics</h3>
+          <div className="time-stats">
+            <h4>Time Performance</h4>
+            <p>Last 5 Games Average: {
+              gameStats.lastFiveGameTimes.length > 0
+                ? (gameStats.lastFiveGameTimes.reduce((a, b) => a + b, 0) / gameStats.lastFiveGameTimes.length).toFixed(2)
+                : '0.00'
+            } seconds per checkout</p>
+            <p>All-Time Average: {
+              (gameStats.totalTime / (gameStats.totalGames * TOTAL_CHECKOUTS)).toFixed(2)
+            } seconds per checkout</p>
+            <p>Total Games Played: {gameStats.totalGames}</p>
+          </div>
+
+          <div className="checkout-stats">
+            <div className="best-checkouts">
+              <h4>Your Best Checkouts</h4>
+              {best.map(checkout => (
+                <div key={checkout.number} className="checkout-stat">
+                  <p>Checkout {checkout.number}</p>
+                  <p>Average Time: {checkout.medianTime.toFixed(2)}s</p>
+                  <p>Success Rate: {checkout.successRate.toFixed(1)}%</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="worst-checkouts">
+              <h4>Your Most Challenging Checkouts</h4>
+              {worst.map(checkout => (
+                <div key={checkout.number} className="checkout-stat">
+                  <p>Checkout {checkout.number}</p>
+                  <p>Average Time: {checkout.medianTime.toFixed(2)}s</p>
+                  <p>Success Rate: {checkout.successRate.toFixed(1)}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="attempts-section">
+          {gameState.wrongAttempts.length > 0 && (
+            <div className="wrong-attempts">
+              <h3>Wrong Attempts</h3>
+              {gameState.wrongAttempts.map((attempt, index) => (
+                <div key={`wrong-${index}`} className="attempt-review">
+                  <p>Checkout {attempt.checkout}</p>
+                  <p>Your attempt: {attempt.attempt.join(' → ')}</p>
+                  <p>Optimal checkout: {attempt.optimalCheckout.join(' → ')}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {gameState.nonOptimalAttempts.length > 0 && (
+            <div className="non-optimal-attempts">
+              <h3>Non-Optimal Checkouts</h3>
+              {gameState.nonOptimalAttempts.map((attempt, index) => (
+                <div key={`non-optimal-${index}`} className="attempt-review">
+                  <p>Checkout {attempt.checkout}</p>
+                  <p>Your attempt: {attempt.attempt.join(' → ')}</p>
+                  <p>Optimal checkout: {attempt.optimalCheckout.join(' → ')}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button onClick={startGame}>Play Again</button>
+      </div>
+    );
+  };
 
   return (
     <div className="speed-game">
@@ -366,14 +680,15 @@ const SpeedGame: React.FC<SpeedGameProps> = ({ onGameComplete }) => {
 
           {!gameState.isGameComplete ? (
             <div className="game-content">
-              <h2>Checkout Target: {gameState.currentCheckout}</h2>
-              
-              <div className="dartboard-container">
-                <Dartboard
-                  onSectionClick={handleDartThrow}
-                  currentThrows={gameState.currentThrows}
-                />
+              <div className="current-checkout">
+                <h2>Checkout: {gameState.currentCheckout}</h2>
+                <p className="message">{gameState.message}</p>
               </div>
+
+              <Dartboard
+                onSectionClick={handleDartThrow}
+                currentThrows={gameState.currentThrows}
+              />
 
               <div className="side-panel">
                 <div className="attempt-display">

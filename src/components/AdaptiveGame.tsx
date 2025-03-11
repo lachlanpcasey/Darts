@@ -10,7 +10,7 @@ interface AdaptiveGameProps {
 // Valid checkout range for adaptive mode
 const MIN_CHECKOUT = 41;
 const MAX_CHECKOUT = 170;
-const TOTAL_CHECKOUTS = 5; // Number of checkouts to complete the game
+const TOTAL_CHECKOUTS = 3; // Number of checkouts to complete the game
 
 // Filter valid checkout numbers for this mode
 const VALID_CHECKOUTS = Object.keys(checkouts)
@@ -274,9 +274,28 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
     if (gameState.currentThrows.length < gameState.dartsRemaining && !gameState.isGameComplete) {
       setGameState(prev => ({
         ...prev,
-        currentThrows: [...prev.currentThrows, section]
+        currentThrows: [...prev.currentThrows, section],
+        showWrongAnimation: false // Clear wrong animation when a new dart is thrown
       }));
     }
+  };
+
+  // Helper function to handle wrong attempt messages with auto-clearing
+  const showWrongAttemptMessage = (message: string) => {
+    setGameState(prev => ({
+      ...prev,
+      message: message,
+      showWrongAnimation: true,
+      currentThrows: []
+    }));
+    
+    // Auto-clear the wrong attempt message after 1.5 seconds
+    setTimeout(() => {
+      setGameState(prev => ({
+        ...prev,
+        showWrongAnimation: false
+      }));
+    }, 1500);
   };
 
   // Handle submit of initial checkout
@@ -297,6 +316,17 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
 
       isOptimal = pointsEarned === 150;
       
+      // Always record non-optimal attempts for comparison at the end
+      let nonOptimalRecord = null;
+      if (!isOptimal) {
+        nonOptimalRecord = {
+          checkout: gameState.currentCheckout,
+          attempt: [...gameState.currentThrows],
+          optimalCheckout: [...optimalCheckout],
+          stage: 'initial' as const
+        };
+      }
+      
       // Choose the first throw and simulate it
       const intendedThrow1 = gameState.currentThrows[0];
       const actualThrow1: string = simulateThrow(intendedThrow1);
@@ -308,6 +338,36 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
       
       // Calculate remaining score after the first simulated throw
       remainingScore -= calculateThrowScore(actualThrow1);
+      
+      // Check for bust after first dart
+      if (remainingScore < 0) {
+        // Show message and move to next checkout after delay
+        showWrongAttemptMessage('Bust! The first dart exceeded the score.');
+        
+        // After a short delay, move to the next checkout
+        setTimeout(() => {
+          // Get the next checkout
+          const newCheckouts = getRandomCheckouts(1);
+          
+          // Reset game state for a new checkout
+          setGameState(prev => ({
+            ...prev,
+            currentCheckout: newCheckouts[0],
+            gameStage: 'initial',
+            currentThrows: [],
+            simulatedThrow1: null,
+            simulatedThrow2: null,
+            remainingScore: null,
+            expectedCheckout: [],
+            originalCheckout: [],
+            message: '',
+            showWrongAnimation: false,
+            dartsRemaining: 3
+          }));
+        }, 2000);
+        
+        return;
+      }
       
       // Determine darts remaining for player
       let dartsRemaining = 2; // After first dart, 2 darts remain
@@ -325,6 +385,36 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
         
         // Calculate remaining score after second throw
         remainingScore -= calculateThrowScore(actualThrow2);
+        
+        // Check for bust after second dart
+        if (remainingScore < 0) {
+          // Show message and move to next checkout after delay
+          showWrongAttemptMessage('Bust! The second dart exceeded the score.');
+          
+          // After a short delay, move to the next checkout
+          setTimeout(() => {
+            // Get the next checkout
+            const newCheckouts = getRandomCheckouts(1);
+            
+            // Reset game state for a new checkout
+            setGameState(prev => ({
+              ...prev,
+              currentCheckout: newCheckouts[0],
+              gameStage: 'initial',
+              currentThrows: [],
+              simulatedThrow1: null,
+              simulatedThrow2: null,
+              remainingScore: null,
+              expectedCheckout: [],
+              originalCheckout: [],
+              message: '',
+              showWrongAnimation: false,
+              dartsRemaining: 3
+            }));
+          }, 2000);
+          
+          return;
+        }
         
         // After second dart, only 1 dart remains
         dartsRemaining = 1;
@@ -370,25 +460,7 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
       }));
     } else {
       // Invalid checkout attempt
-      setGameState(prev => ({
-        ...prev,
-        message: 'Invalid checkout attempt. Try again!',
-        showWrongAnimation: true,
-        wrongAttempts: [...prev.wrongAttempts, {
-          checkout: prev.currentCheckout,
-          attempt: prev.currentThrows,
-          optimalCheckout,
-          stage: 'initial'
-        }]
-      }));
-      
-      setTimeout(() => {
-        setGameState(prev => ({
-          ...prev,
-          showWrongAnimation: false,
-          currentThrows: []
-        }));
-      }, 1000);
+      showWrongAttemptMessage('Invalid checkout attempt. Try again!');
     }
   };
 
@@ -406,12 +478,30 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
     
     // Check for bust
     if (scoreAfterThrows < 0) {
-      setGameState(prev => ({
-        ...prev,
-        message: 'Bust! You exceeded the score.',
-        showWrongAnimation: true,
-        currentThrows: []
-      }));
+      showWrongAttemptMessage('Bust! You exceeded the score.');
+      
+      // After a short delay, move to the next checkout
+      setTimeout(() => {
+        // Get the next checkout
+        const newCheckouts = getRandomCheckouts(1);
+        
+        // Reset game state for a new checkout
+        setGameState(prev => ({
+          ...prev,
+          currentCheckout: newCheckouts[0],
+          gameStage: 'initial',
+          currentThrows: [],
+          simulatedThrow1: null,
+          simulatedThrow2: null,
+          remainingScore: null,
+          expectedCheckout: [],
+          originalCheckout: [],
+          message: '',
+          showWrongAnimation: false,
+          dartsRemaining: 3
+        }));
+      }, 2000);
+      
       return;
     }
     
@@ -546,25 +636,7 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
         errorMessage = `You left ${scoreAfterThrows}, which is not a checkout or a good strategic leave.`;
       }
       
-      setGameState(prev => ({
-        ...prev,
-        message: errorMessage,
-        showWrongAnimation: true,
-        wrongAttempts: [...prev.wrongAttempts, {
-          checkout: prev.remainingScore || 0,
-          attempt: prev.currentThrows,
-          optimalCheckout,
-          stage: 'adjusting'
-        }]
-      }));
-      
-      setTimeout(() => {
-        setGameState(prev => ({
-          ...prev,
-          showWrongAnimation: false,
-          currentThrows: []
-        }));
-      }, 1000);
+      showWrongAttemptMessage(errorMessage);
     }
   };
 
@@ -646,32 +718,39 @@ const AdaptiveGame: React.FC<AdaptiveGameProps> = ({ onGameComplete }) => {
     <div className="game-complete">
       <div className="header-section">
         <h2>Challenge Complete!</h2>
-        <p>Final Score: <strong style={{ color: getScoreColor(gameState.currentScore) }}>{gameState.currentScore}</strong></p>
-        {gameState.currentScore > highScore && <div className="new-high-score">New High Score!</div>}
+        <div className="score-summary">
+          <p>Your Score: <strong style={{ color: getScoreColor(gameState.currentScore) }}>{gameState.currentScore}</strong></p>
+          <p>High Score: <strong>{highScore}</strong></p>
+          {gameState.currentScore > highScore && <div className="new-high-score">New High Score!</div>}
+        </div>
       </div>
 
-      <div className="game-stats">
-        <div className="time-stats">
-          <h3>Time Statistics</h3>
-          <p>Total Time: {gameState.totalTime.toFixed(2)} seconds</p>
-          <p>Average Time per Checkout: {(gameState.totalTime / TOTAL_CHECKOUTS).toFixed(2)} seconds</p>
-        </div>
-
-        {gameState.nonOptimalAttempts.length > 0 && (
-          <div className="wrong-attempts">
-            <h4>Non-Optimal Checkouts ({gameState.nonOptimalAttempts.length})</h4>
-            {gameState.nonOptimalAttempts.slice(0, 5).map((attempt, index) => (
-              <div className="wrong-attempt" key={index}>
-                <p>Checkout {attempt.checkout}: {attempt.attempt.join(', ')}</p>
-                <p>Optimal: {attempt.optimalCheckout.join(', ')}</p>
-                <p>Stage: {attempt.stage === 'initial' ? 'Initial Checkout' : 'Adjustment'}</p>
+      {gameState.nonOptimalAttempts.length > 0 ? (
+        <div className="non-optimal-attempts">
+          <h3>Your Non-Optimal Checkouts</h3>
+          <div className="attempts-grid">
+            {gameState.nonOptimalAttempts.map((attempt, index) => (
+              <div className="attempt-card" key={index}>
+                <div className="attempt-header">Checkout: {attempt.checkout}</div>
+                <div className="attempt-details">
+                  <p><span>Your Path:</span> {attempt.attempt.join(' → ')}</p>
+                  <p><span>Optimal Path:</span> {attempt.optimalCheckout.join(' → ')}</p>
+                  <p className="attempt-stage">
+                    {attempt.stage === 'initial' ? 'Initial Checkout' : 'Adaptation Stage'}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="perfect-game">
+          <h3>Perfect Game!</h3>
+          <p>You found all optimal checkout paths. Well done!</p>
+        </div>
+      )}
 
-      <button onClick={startGame}>Play Again</button>
+      <button className="play-again-button" onClick={startGame}>Play Again</button>
     </div>
   );
 

@@ -863,4 +863,157 @@
   justify-content: center;
   gap: 20px;
   flex-wrap: wrap;
+}
+
+/* Add new styles for adaptive game mode */
+
+.adjustment-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+}
+
+.simulated-darts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background-color: #f0f0f0;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin: 10px 0;
+}
+
+.dart-hits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+  justify-content: center;
+}
+
+.dart-hit {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 1.2em;
+  color: #fff;
+  background-color: #ff5733;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  margin: 5px;
+  border: 2px solid #fff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.dart-hit.active {
+  background-color: #ff3030;
+  animation: dartHitPulse 1.5s infinite;
+}
+
+@keyframes dartHitPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.dart-hit::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background-color: white;
+  border-radius: 50%;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.simulated-darts p {
+  margin: 5px 0;
+  font-weight: bold;
+  font-size: 1.2em;
+  color: #2c3e50;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+/* Additional styles for existing elements */
+
+@media (max-width: 768px) {
+  .adjustment-header {
+    flex-direction: column;
+  }
+
+  .dart-hit {
+    width: 50px;
+    height: 50px;
+    font-size: 0.9em;
+  }
+}
+
+.score-remaining {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #e74c3c;
+  padding: 5px 15px;
+  background-color: #fff;
+  border-radius: 10px;
+  border: 2px solid #e74c3c;
+  display: inline-block;
+  margin: 10px 0;
+}
+
+/* Add styles for card layout */
+.card-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.card {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin: 10px;
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.start-game-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.start-game-button:hover {
+  background-color: #2980b9;
 } 

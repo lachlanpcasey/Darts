@@ -174,9 +174,10 @@
 .segment.active,
 .single-bull.active,
 .double-bull.active {
-  filter: brightness(1.3);
-  stroke-width: 1.5;
+  filter: brightness(1.5) drop-shadow(0 0 4px rgba(255, 255, 0, 0.7));
+  stroke-width: 2.5;
   stroke: #f1c40f;
+  animation: enhancedPulse 1.5s infinite;
 }
 
 /* Tooltip */
@@ -209,13 +210,16 @@
 /* Animations */
 @keyframes pulse {
   0% {
-    filter: brightness(1.3);
+    opacity: 0.85;
+    filter: brightness(1.2);
   }
   50% {
-    filter: brightness(1.5);
+    opacity: 1;
+    filter: brightness(1.4);
   }
   100% {
-    filter: brightness(1.3);
+    opacity: 0.85;
+    filter: brightness(1.2);
   }
 }
 
@@ -236,4 +240,28 @@
 .double-bull:active {
   filter: brightness(0.8);
   transition: filter 0.1s;
+}
+
+/* Add styles for simulated darts */
+.segment.simulated, .single-bull.simulated, .double-bull.simulated {
+  fill: #ff3030; /* Brighter red */
+  stroke: #ffffff;
+  stroke-width: 3;
+  filter: brightness(1.5) drop-shadow(0 0 5px rgba(255, 0, 0, 0.7));
+}
+
+/* Enhanced pulse animation */
+@keyframes enhancedPulse {
+  0% {
+    opacity: 0.9;
+    filter: brightness(1.4) drop-shadow(0 0 3px rgba(255, 255, 0, 0.6));
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.6) drop-shadow(0 0 6px rgba(255, 255, 0, 0.8));
+  }
+  100% {
+    opacity: 0.9;
+    filter: brightness(1.4) drop-shadow(0 0 3px rgba(255, 255, 0, 0.6));
+  }
 } 

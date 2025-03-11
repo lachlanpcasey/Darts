@@ -4,6 +4,7 @@ import './Dartboard.css';
 interface DartboardProps {
   onSectionClick: (section: string) => void;
   currentThrows: string[];
+  simulatedThrows?: string[]; // Add prop for visualizing simulated throws
 }
 
 interface TooltipState {
@@ -13,7 +14,11 @@ interface TooltipState {
   text: string;
 }
 
-const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) => {
+const Dartboard: React.FC<DartboardProps> = ({ 
+  onSectionClick, 
+  currentThrows,
+  simulatedThrows = [] // Default to empty array if not provided
+}) => {
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
@@ -39,6 +44,22 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
   // Helper to check if a section is part of current throws
   const isActiveSection = (section: string): boolean => {
     return currentThrows.includes(section);
+  };
+
+  // Helper to check if a section is part of simulated throws
+  const isSimulatedSection = (section: string): boolean => {
+    return simulatedThrows.includes(section);
+  };
+
+  // Generate classes for a section based on its state
+  const getSectionClasses = (section: string, baseClasses: string): string => {
+    let classes = baseClasses;
+    if (isActiveSection(section)) {
+      classes += ' active';
+    } else if (isSimulatedSection(section)) {
+      classes += ' simulated';
+    }
+    return classes;
   };
 
   // Generate path for a segment
@@ -92,7 +113,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
             <path
               key={`double-${number}`}
               d={getSegmentPath(index, 165, 180)}
-              className={`segment double ${index % 2 === 0 ? 'even' : 'odd'} ${isActiveSection(section) ? 'active' : ''}`}
+              className={getSectionClasses(section, `segment double ${index % 2 === 0 ? 'even' : 'odd'}`)}
               onClick={() => onSectionClick(section)}
               onMouseMove={(e) => handleMouseMove(e, `Double ${number} (${number * 2})`)}
               onMouseLeave={handleMouseLeave}
@@ -107,7 +128,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
             <path
               key={`outer-single-${number}`}
               d={getSegmentPath(index, 130, 165)}
-              className={`segment single ${index % 2 === 0 ? 'even' : 'odd'} ${isActiveSection(section) ? 'active' : ''}`}
+              className={getSectionClasses(section, `segment single ${index % 2 === 0 ? 'even' : 'odd'}`)}
               onClick={() => onSectionClick(section)}
               onMouseMove={(e) => handleMouseMove(e, `Single ${number}`)}
               onMouseLeave={handleMouseLeave}
@@ -122,7 +143,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
             <path
               key={`triple-${number}`}
               d={getSegmentPath(index, 120, 130)}
-              className={`segment triple ${index % 2 === 0 ? 'even' : 'odd'} ${isActiveSection(section) ? 'active' : ''}`}
+              className={getSectionClasses(section, `segment triple ${index % 2 === 0 ? 'even' : 'odd'}`)}
               onClick={() => onSectionClick(section)}
               onMouseMove={(e) => handleMouseMove(e, `Triple ${number} (${number * 3})`)}
               onMouseLeave={handleMouseLeave}
@@ -137,7 +158,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
             <path
               key={`inner-single-${number}`}
               d={getSegmentPath(index, 30, 120)}
-              className={`segment single ${index % 2 === 0 ? 'even' : 'odd'} ${isActiveSection(section) ? 'active' : ''}`}
+              className={getSectionClasses(section, `segment single ${index % 2 === 0 ? 'even' : 'odd'}`)}
               onClick={() => onSectionClick(section)}
               onMouseMove={(e) => handleMouseMove(e, `Single ${number}`)}
               onMouseLeave={handleMouseLeave}
@@ -150,7 +171,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
           cx="250"
           cy="250"
           r="32"
-          className={`single-bull ${isActiveSection('25') ? 'active' : ''}`}
+          className={getSectionClasses('25', 'single-bull')}
           onClick={() => onSectionClick('25')}
           onMouseMove={(e) => handleMouseMove(e, '25 (25)')}
           onMouseLeave={handleMouseLeave}
@@ -161,7 +182,7 @@ const Dartboard: React.FC<DartboardProps> = ({ onSectionClick, currentThrows }) 
           cx="250"
           cy="250"
           r="16"
-          className={`double-bull ${isActiveSection('BULL') ? 'active' : ''}`}
+          className={getSectionClasses('BULL', 'double-bull')}
           onClick={() => onSectionClick('BULL')}
           onMouseMove={(e) => handleMouseMove(e, 'BULL (50)')}
           onMouseLeave={handleMouseLeave}

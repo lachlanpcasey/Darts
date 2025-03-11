@@ -3,6 +3,7 @@ import './App.css'
 import Dartboard from './components/Dartboard'
 import { isCheckoutPossible, validateAttempt } from './checkouts'
 import SpeedGame from './components/SpeedGame'
+import AdaptiveGame from './components/AdaptiveGame'
 
 function App() {
   const [gameStarted, setGameStarted] = useState(false);
@@ -10,7 +11,7 @@ function App() {
   const [currentThrows, setCurrentThrows] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [showSpeedGame, setShowSpeedGame] = useState(false);
-  const [gameMode, setGameMode] = useState<'none' | 'practice' | 'speed'>('none');
+  const [gameMode, setGameMode] = useState<'none' | 'practice' | 'speed' | 'adaptive'>('none');
   const [stats, setStats] = useState({
     attempts: 0,
     correct: 0,
@@ -36,7 +37,7 @@ function App() {
   };
 
   const validateCheckout = () => {
-    const result = validateAttempt(targetNumber, currentThrows);
+    const result = validateAttempt(currentThrows, targetNumber);
     setStats(prev => ({
       attempts: prev.attempts + 1,
       correct: prev.correct + (result.isValid ? 1 : 0),
@@ -90,6 +91,10 @@ function App() {
     setGameMode('speed');
   };
 
+  const startAdaptiveMode = () => {
+    setGameMode('adaptive');
+  };
+
   const renderLandingPage = () => (
     <div className="landing-page">
       <div className="game-modes">
@@ -116,6 +121,18 @@ function App() {
           </ul>
           <button className="mode-button">Start Challenge</button>
         </div>
+
+        <div className="game-mode-card" onClick={startAdaptiveMode}>
+          <h2>Adaptive Challenge</h2>
+          <div className="mode-icon">🔄</div>
+          <p>Adapt to the unexpected - just like in a real game!</p>
+          <ul>
+            <li>Adapt to missed shots</li>
+            <li>Dynamic scoring</li>
+            <li>Test your real-game skills</li>
+          </ul>
+          <button className="mode-button">Start Adaptive</button>
+        </div>
       </div>
     </div>
   );
@@ -123,6 +140,10 @@ function App() {
   const renderGameContent = () => {
     if (gameMode === 'speed') {
       return <SpeedGame />;
+    }
+
+    if (gameMode === 'adaptive') {
+      return <AdaptiveGame />;
     }
 
     return (
@@ -178,7 +199,9 @@ function App() {
 
   return (
     <div className="game-container">
-      <h1>Darts Checkout Practice</h1>
+      <h1>
+        Darts <span className="heading-accent">Checkout</span> Pro
+      </h1>
       
       {gameMode !== 'none' && (
         <div className="mode-selection">
@@ -195,6 +218,13 @@ function App() {
             disabled={gameMode === 'speed'}
           >
             Speed Challenge
+          </button>
+          <button 
+            className="mode-button"
+            onClick={() => setGameMode('adaptive')}
+            disabled={gameMode === 'adaptive'}
+          >
+            Adaptive Challenge
           </button>
         </div>
       )}
